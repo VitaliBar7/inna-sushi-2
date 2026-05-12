@@ -1,0 +1,6 @@
+# https://supabase.com/docs/guides/cli/config
+# קריאה מהאפליקציה: Authorization + Bearer של SUPABASE_SERVICE_ROLE_KEY (רק בשרת Next)
+
+[functions.notify-order-email]
+# קריאה רק משרת Next עם SUPABASE_SERVICE_ROLE_KEY — זה לא JWT של משתמש; עם true השער דוחה לפני שהקוד רץ.
+verify_jwt = false

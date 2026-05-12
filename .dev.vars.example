@@ -1,0 +1,5 @@
+# העתיקו ל־.dev.vars (לא ל-commit). לפריסה ב-Cloudflare הגדירו משתנים ב-Dashboard / wrangler secret.
+NEXTJS_ENV=development
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=

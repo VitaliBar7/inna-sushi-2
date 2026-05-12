@@ -16,6 +16,7 @@
 # next.js
 /.next/
 /out/
+.open-next/
 
 # production
 /build
@@ -32,10 +33,15 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
-
+.env.local
+.dev.vars
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# supabase — ארטיפקטים מקומיים בלבד (Functions + config נשמרים ב-repo)
+supabase/.branches
+supabase/.temp

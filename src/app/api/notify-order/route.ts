@@ -8,8 +8,20 @@ import { randomOrderCode } from "@/lib/order-code";
 import { roundMoney } from "@/lib/menu-price";
 import { getSupabaseUrl } from "@/lib/supabase/config";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { getClientIp } from "@/lib/http/client-ip";
+import { rateLimit } from "@/lib/http/rate-limit";
+import { isSameOriginRequest } from "@/lib/http/origin";
 
 import { normalizeOrderEmail } from "@/lib/order-email";
+
+/** גודל מקסימלי לגוף הבקשה (בייטים). הזמנה רגילה < 4KB. */
+const MAX_BODY_BYTES = 16 * 1024;
+/** Rate limit: עד 5 הזמנות בדקה לכתובת IP אחת. */
+const RATE_LIMIT_PER_IP = 5;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+/** גלובלי כדי לבלום הצפה מרובת IP מאותו worker (best-effort). */
+const GLOBAL_LIMIT = 60;
+const GLOBAL_WINDOW_MS = 60_000;
 
 /**
  * מעביר הזמנה ל־Supabase Edge Function `notify-order-email` (שולח מייל דרך Resend).
@@ -70,6 +82,53 @@ function parseCustomer(body: Record<string, unknown>): OrderCustomerPayload | nu
 }
 
 export async function POST(req: Request) {
+  /* 1) Same-Origin: חוסם POST ישיר מ-curl/bots שלא טוענים את האתר */
+  if (!isSameOriginRequest(req.headers)) {
+    return NextResponse.json({ error: "מקור לא מורשה" }, { status: 403 });
+  }
+
+  /* 2) Content-Type חייב JSON */
+  const contentType = req.headers.get("content-type") || "";
+  if (!contentType.toLowerCase().includes("application/json")) {
+    return NextResponse.json({ error: "סוג בקשה לא נתמך" }, { status: 415 });
+  }
+
+  /* 3) Rate limit לפי IP + גלובלי, החזרת 429 */
+  const ip = getClientIp(req.headers);
+  const ipRl = rateLimit(`notify-order:ip:${ip}`, RATE_LIMIT_PER_IP, RATE_LIMIT_WINDOW_MS);
+  const globalRl = rateLimit("notify-order:global", GLOBAL_LIMIT, GLOBAL_WINDOW_MS);
+  if (!ipRl.ok || !globalRl.ok) {
+    const retryMs = Math.max(0, (ipRl.ok ? globalRl.resetAt : ipRl.resetAt) - Date.now());
+    const retryAfter = Math.ceil(retryMs / 1000);
+    return NextResponse.json(
+      { error: "יותר מדי בקשות, נסו שוב בעוד רגע", code: "RATE_LIMITED" },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(retryAfter),
+          "X-RateLimit-Limit": String(RATE_LIMIT_PER_IP),
+          "X-RateLimit-Remaining": String(ipRl.remaining),
+          "X-RateLimit-Reset": String(Math.floor(ipRl.resetAt / 1000)),
+        },
+      },
+    );
+  }
+
+  /* 4) הגבלת גודל גוף בקשה — מונע body bomb */
+  const lenHeader = req.headers.get("content-length");
+  if (lenHeader && Number(lenHeader) > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: "גוף בקשה גדול מדי" }, { status: 413 });
+  }
+  let raw: string;
+  try {
+    raw = await req.text();
+  } catch {
+    return NextResponse.json({ error: "גוף בקשה לא תקין" }, { status: 400 });
+  }
+  if (raw.length > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: "גוף בקשה גדול מדי" }, { status: 413 });
+  }
+
   const baseUrl = getSupabaseUrl().replace(/\/$/, "");
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -86,12 +145,19 @@ export async function POST(req: Request) {
 
   let json: unknown;
   try {
-    json = await req.json();
+    json = JSON.parse(raw);
   } catch {
     return NextResponse.json({ error: "גוף בקשה לא תקין" }, { status: 400 });
   }
 
   const body = json as Record<string, unknown>;
+
+  /* 5) Honeypot — שדה שאמור להישאר ריק; בוט ימלא ויחסם בשקט */
+  const trap = body._company;
+  if (typeof trap === "string" && trap.trim().length > 0) {
+    return NextResponse.json({ ok: true }, { status: 200 });
+  }
+
   const lines = parseLines(body.lines);
   if (!lines) {
     return NextResponse.json({ error: "פירוט הזמנה לא תקין" }, { status: 400 });

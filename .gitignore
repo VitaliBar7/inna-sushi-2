@@ -31,10 +31,24 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
-.env.local
+# env files (NEVER commit real secrets) — דוגמאות עם סיומת .example מותרות
+.env
+.env.*
+!.env.example
+!.env.*.example
 .dev.vars
+!.dev.vars.example
+
+# secrets / מפתחות נפוצים — שמרים נוספים על הזיוף האנושי
+*.key
+*.pfx
+*.p12
+*.cer
+*.crt
+*.kdbx
+secrets.json
+credentials.json
+
 # vercel
 .vercel
 
@@ -45,3 +59,4 @@ next-env.d.ts
 # supabase — ארטיפקטים מקומיים בלבד (Functions + config נשמרים ב-repo)
 supabase/.branches
 supabase/.temp
+supabase

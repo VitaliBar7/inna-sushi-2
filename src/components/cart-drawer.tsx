@@ -36,6 +36,8 @@ export function CartDrawer() {
   const [fulfillment, setFulfillment] = useState<OrderFulfillment>("maalot");
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [cartPlacement, setCartPlacement] = useState<"bottom" | "right">("right");
+  /* Honeypot — שדה מוסתר; בני אדם לא ימלאו, בוטים בד״כ כן ויסומנו בשרת */
+  const [honeypot, setHoneypot] = useState("");
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 639px)");
@@ -71,10 +73,12 @@ export function CartDrawer() {
       const res = await fetch("/api/notify-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
         body: JSON.stringify({
           customerName: nameT,
           phone: phone.trim(),
           fulfillment,
+          _company: honeypot,
           lines: lines.map((l) => ({
             name: l.name,
             quantity: l.quantity,
@@ -274,6 +278,21 @@ export function CartDrawer() {
                 </Modal.Heading>
               </Modal.Header>
               <Modal.Body className="flex flex-col gap-3 pt-4">
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute -left-[9999px] top-0 h-0 w-0 overflow-hidden opacity-0"
+                >
+                  <label htmlFor="cart-hp-company">Company</label>
+                  <input
+                    id="cart-hp-company"
+                    type="text"
+                    name="company"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    value={honeypot}
+                    onChange={(e) => setHoneypot(e.target.value)}
+                  />
+                </div>
                 <TextField isRequired className="w-full">
                   <Label>שם מלא</Label>
                   <Input

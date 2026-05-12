@@ -3,3 +3,6 @@ NEXTJS_ENV=development
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
+# מומלץ בפרודקשן: ה-Origin המלא של האתר ("https://example.com").
+# בו משתמשים ב-/api/notify-order לבדיקת Same-Origin. אם לא מוגדר — נופלים על Host header.
+PUBLIC_SITE_ORIGIN=
